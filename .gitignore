@@ -1,0 +1,8 @@
+# Run
+__pycache__
+
+# Folders
+data/*
+
+# Files
+*.pth
