@@ -11,13 +11,13 @@ from torchvision import datasets, transforms
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from ddpm import GaussianDiffusion
+from ddim import GaussianDiffusion
 from unet import UNetModel
 
-
-
-# start ############################################### 拿000000039769.jpg这张图片对正向加噪进行可视化展示 #######################
+#url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+#image = Image.open(requests.get(url, stream=True).raw)
 image = Image.open("./data/000000039769.jpg")
+
 image_size = 128
 transform = transforms.Compose([
     transforms.Resize(image_size),
@@ -45,13 +45,6 @@ for idx, t in enumerate([0, 50, 100, 200, 499]):
 plt.savefig('./data/noisy_images.png')
 plt.show()
 
-# end ############################################### 拿000000039769.jpg这张图片对正向加噪进行可视化展示 #######################
-
-# print("Break point")
-# while True:
-#     setpoint = 0
-
-# start ######################################## dataloader 读入trainingset MINIST / 定义model实例（UNet）和 gaussian_diffusion实例（GaussianDiffusion）#########################
 batch_size = 512
 timesteps = 500
 
@@ -76,37 +69,32 @@ model = UNetModel(
 model.to(device)
 
 gaussian_diffusion = GaussianDiffusion(timesteps=timesteps)
-optimizer = torch.optim.Adam(model.parameters(), lr=5e-4) # 训练优化器
+optimizer = torch.optim.Adam(model.parameters(), lr=5e-4)
 
-
-# start ######################################## training processing #########################
-epochs = 1
+# train
+epochs = 10
 
 for epoch in range(epochs):
     for step, (images, labels) in enumerate(train_loader):
-        # print(step)
         optimizer.zero_grad()
         
         batch_size = images.shape[0]
         images = images.to(device)
-        # print(images.shape)
         
         # sample t uniformally for every example in the batch
         t = torch.randint(0, timesteps, (batch_size,), device=device).long()
         
         loss = gaussian_diffusion.train_losses(model, images, t)
         
-        if step % 200 == 0:
-            print(f"epoch:{epoch}, Loss:{loss.item()}")
+        if step % 400 == 0:
+            print("Loss:", loss.item())
             
         loss.backward()
         optimizer.step()
 
-# print("Break point")
-# while True:
-#     setpoint = 0
 
 generated_images = gaussian_diffusion.sample(model, 28, batch_size=64, channels=1)
+
 # generate new images
 fig = plt.figure(figsize=(12, 12), constrained_layout=True)
 gs = fig.add_gridspec(8, 8)
@@ -118,20 +106,23 @@ for n_row in range(8):
         f_ax.imshow((imgs[n_row, n_col]+1.0) * 255 / 2, cmap="gray")
         f_ax.axis("off")
 
-plt.savefig('./data/generated_images.png')
+
+plt.savefig('./data/generated_images_ddim.png')
 plt.show()
 
-# show the denoise steps
-fig = plt.figure(figsize=(12, 12), constrained_layout=True)
-gs = fig.add_gridspec(16, 16)
+ddim_generated_images = gaussian_diffusion.ddim_sample(model, 28, batch_size=64, channels=1, ddim_timesteps=50)
 
-for n_row in range(16):
-    for n_col in range(16):
+
+# generate new images
+fig = plt.figure(figsize=(12, 12), constrained_layout=True)
+gs = fig.add_gridspec(8, 8)
+
+imgs = ddim_generated_images.reshape(8, 8, 28, 28)
+for n_row in range(8):
+    for n_col in range(8):
         f_ax = fig.add_subplot(gs[n_row, n_col])
-        t_idx = (timesteps // 16) * n_col if n_col < 15 else -1
-        img = generated_images[t_idx][n_row].reshape(28, 28)
-        f_ax.imshow((img+1.0) * 255 / 2, cmap="gray")
+        f_ax.imshow((imgs[n_row, n_col]+1.0) * 255 / 2, cmap="gray")
         f_ax.axis("off")
 
-plt.savefig('./data/generated_images_denoisesteps.png')
+plt.savefig('./data/generated_images_ddim2.png')
 plt.show()
